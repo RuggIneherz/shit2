@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{user}}人设生成器</title>
+  <style>
+    :root{
+      --black:#000;
+      --white:#fff;
+      --gray:#f5f5f5;
+      --line:1px solid #000;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--white);
+      color:var(--black);
+      font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+      letter-spacing:.02em;
+    }
+    .wrap{max-width:1000px;margin:0 auto;padding:40px 18px 80px}
+    .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    h1{margin:0;font-size:30px;font-weight:600;letter-spacing:.01em}
+    .block{border:var(--line);padding:16px;margin-bottom:14px}
+    .gray{background:var(--gray)}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    button,input,textarea,select{
+      font:inherit;color:var(--black);background:var(--white);
+      border:var(--line);outline:none;border-radius:0;
+    }
+    button{
+      height:38px;padding:0 14px;background:var(--black);color:var(--white);
+      cursor:pointer;transition:.16s ease-out;
+    }
+    button:hover{background:var(--white);color:var(--black)}
+    button:active{transform:translate(1px,1px)}
+    input,select{height:38px;padding:0 10px}
+    textarea{
+      width:100%;min-height:320px;padding:12px;line-height:1.72;resize:vertical;
+      background:var(--white);
+    }
+    .tip,.small{font-size:12px;line-height:1.5}
+    .result{white-space:pre-wrap;line-height:1.8;min-height:150px}
+    .history-item{border:var(--line);padding:10px;margin-bottom:8px;cursor:pointer;background:var(--white)}
+    .history-item:hover{background:var(--gray)}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .chip{border:var(--line);padding:4px 8px;font-size:12px;cursor:pointer}
+    .chip:hover{background:#000;color:#fff}
+
+    .modal{
+      position:fixed;inset:0;background:rgba(0,0,0,.12);
+      display:none;align-items:center;justify-content:center;padding:16px;z-index:10;
+    }
+    .modal.show{display:flex}
+    .panel{
+      width:min(760px,100%);background:#fff;border:var(--line);padding:16px;
+    }
+    .panel h2{margin:0 0 12px;text-align:center;font-size:28px}
+    .field{margin-bottom:10px}
+    .field label{display:block;font-weight:600;margin-bottom:6px}
+    .field input,.field select{width:100%;background:#f7f7f7}
+    .field .hint{font-size:12px;line-height:1.4;color:#333;margin-top:4px}
+    .model-row{display:flex;gap:8px}
+    .model-row select{flex:1}
+    .slider-line{display:flex;justify-content:space-between;font-size:12px;margin-top:4px}
+    @media (max-width:700px){
+      h1{font-size:24px}
+      .panel h2{font-size:24px}
+      .model-row{flex-direction:column}
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="top">
+      <h1>{{user}}人设生成器</h1>
+      <button id="btnOpenSettings">API设置</button>
+    </div>
+
+    <section class="block">
+      <div class="row">
+        <button id="btnRandom">随机生成</button>
+        <button id="btnGenerate">按模板生成</button>
+        <button id="btnCopy">复制结果</button>
+        <span id="tip" class="tip"></span>
+      </div>
+      <div class="small" style="margin-top:6px;">无登录。配置仅保存在你自己的浏览器。</div>
+    </section>
+
+    <section class="block gray">
+      <div style="font-weight:600;margin-bottom:6px;">关键词（可选，逗号分隔）</div>
+      <input id="keywordsInput" style="width:100%" placeholder="例如：理性, 克制, 通勤, 慢热">
+      <div id="chips" class="chips"></div>
+    </section>
+
+    <section class="block">
+      <div style="font-weight:600;margin-bottom:6px;">人设模板（可编辑）</div>
+      <textarea id="templateInput"></textarea>
+    </section>
+
+    <section class="block gray">
+      <div style="font-weight:600;margin-bottom:6px;">生成结果（纯文字）</div>
+      <div id="result" class="result">（结果将在这里显示）</div>
+    </section>
+
+    <section class="block">
+      <div style="font-weight:600;margin-bottom:6px;">历史记录（本地）</div>
+      <div id="historyList"></div>
+    </section>
+  </main>
+
+  <!-- API设置弹窗 -->
+  <div class="modal" id="modal">
+    <div class="panel">
+      <h2>API设置</h2>
+
+      <div class="field">
+        <label>API地址</label>
+        <input id="apiBaseUrl" placeholder="https://gcli.ggchan.dev 或 https://xxx/v1" />
+        <div class="hint">若拉模型失败可尝试：去掉/加上 /v1，或换 http/https。</div>
+      </div>
+
+      <div class="field">
+        <label>API密钥</label>
+        <input id="apiKey" type="password" placeholder="你的 API Key" />
+      </div>
+
+      <div class="field">
+        <label>模型</label>
+        <div class="model-row">
+          <select id="modelSelect">
+            <option value="">请先拉取模型或手填</option>
+          </select>
+          <button id="btnPullModels" type="button">拉取模型</button>
+        </div>
+        <input id="modelManual" placeholder="手填模型名（可选）例如 gemini-2.5-pro" style="margin-top:8px" />
+      </div>
+
+      <div class="field">
+        <label>温度参数 (<span id="tempVal">0.75</span>)</label>
+        <input id="tempRange" type="range" min="0" max="2" step="0.01" value="0.75" />
+        <div class="slider-line"><span>0.00(保守)</span><span>1.00(平衡)</span><span>2.00(创新)</span></div>
+      </div>
+
+      <div class="row">
+        <button id="btnSaveSettings">保存设置</button>
+        <button id="btnCloseSettings" type="button">关闭</button>
+        <span id="settingsTip" class="tip"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== 内置模板 ==========
+    const DEFAULT_TEMPLATE = `user_name:
+  Chinese name:
+  Nickname:
+  age:
+  gender:
+  height:
+  identity:
+    -
+  background_story:
+    童年(0-12岁):
+    少年(13-18岁):
+    青年(19-35岁):
+    中年(35-至今):
+    现状:
+  
+  social_status:
+    -
+
+  appearance:
+    hair:
+    eyes:
+    skin:
+    face_style:
+    build:
+      -
+  attire:
+    business_formal:
+    business_casual:
+    casual_wear:
+    home_wear:
+
+  archetype:
+
+  personality:
+    core_traits:
+      - : ""
+    romantic_traits:
+      - : ""
+
+  lifestyle_behaviors:
+    -
+    -
+  
+  work_behaviors:
+    -
+
+  emotional_behaviors:
+    angry:
+    happy:
+
+  goals:
+    -
+
+  weakness:
+    -
+
+  likes:
+    -
+
+  dislikes:
+    -
+
+  skills:
+    - 工作: ["",""]
+    - 生活: ["",""]
+    - 爱好: ["",""]
+
+  NSFW_information:
+    Sex_related traits:
+      experiences:
+      sexual_orientation:
+      sexual_role:
+      sexual_habits:
+        -
+    Kinks:
+    Limits:`;
+
+    const KEYWORDS = [
+      "理性","克制","慢热","专一","边界感强","执行力高","清冷感","通勤极简",
+      "产品经理","设计师","研究员","创业者","高挑","清瘦","骨相清晰",
+      "文档强迫症","结果导向","过度思考","仪式感","深度对话"
+    ];
+
+    const LS_CFG = "persona_cfg_only_front_v1";
+    const LS_DRAFT = "persona_draft_only_front_v1";
+    const LS_HISTORY = "persona_history_only_front_v1";
+
+    const tip = document.getElementById("tip");
+    const settingsTip = document.getElementById("settingsTip");
+    const resultEl = document.getElementById("result");
+    const templateInput = document.getElementById("templateInput");
+    const keywordsInput = document.getElementById("keywordsInput");
+    const historyList = document.getElementById("historyList");
+
+    const modal = document.getElementById("modal");
+    const btnOpenSettings = document.getElementById("btnOpenSettings");
+    const btnCloseSettings = document.getElementById("btnCloseSettings");
+
+    const apiBaseUrl = document.getElementById("apiBaseUrl");
+    const apiKey = document.getElementById("apiKey");
+    const modelSelect = document.getElementById("modelSelect");
+    const modelManual = document.getElementById("modelManual");
+    const tempRange = document.getElementById("tempRange");
+    const tempVal = document.getElementById("tempVal");
+
+    const btnPullModels = document.getElementById("btnPullModels");
+    const btnSaveSettings = document.getElementById("btnSaveSettings");
+    const btnRandom = document.getElementById("btnRandom");
+    const btnGenerate = document.getElementById("btnGenerate");
+    const btnCopy = document.getElementById("btnCopy");
+
+    let currentText = "";
+
+    function setTip(msg){ tip.textContent = msg || ""; if(msg) setTimeout(()=>{ if(tip.textContent===msg) tip.textContent=""; },1500);}
+    function setSettingsTip(msg){ settingsTip.textContent = msg || ""; if(msg) setTimeout(()=>{ if(settingsTip.textContent===msg) settingsTip.textContent=""; },1800);}
+
+    function getCfg(){
+      try { return JSON.parse(localStorage.getItem(LS_CFG) || "{}"); } catch { return {}; }
+    }
+    function saveCfg(cfg){
+      localStorage.setItem(LS_CFG, JSON.stringify(cfg));
+    }
+
+    function normalizeBase(base){
+      return (base || "").trim().replace(/\/+$/, "");
+    }
+    function modelUrls(base){
+      const b = normalizeBase(base);
+      if (b.endsWith("/v1")) return [`${b}/models`, `${b.slice(0,-3)}/v1/models`, `${b.slice(0,-3)}/models`];
+      return [`${b}/v1/models`, `${b}/models`];
+    }
+    function chatUrls(base){
+      const b = normalizeBase(base);
+      if (b.endsWith("/v1")) return [`${b}/chat/completions`, `${b.slice(0,-3)}/v1/chat/completions`, `${b.slice(0,-3)}/chat/completions`];
+      return [`${b}/v1/chat/completions`, `${b}/chat/completions`];
+    }
+    function headersWithKey(key){
+      const h = {"Content-Type":"application/json"};
+      if ((key||"").trim()) h["Authorization"] = "Bearer " + key.trim();
+      return h;
+    }
+    function parseKeywords(){
+      return (keywordsInput.value || "").split(/[，,]/).map(s=>s.trim()).filter(Boolean);
+    }
+
+    function buildMessages(mode, templateText, keywords){
+      const schema = `请严格按以下YAML结构输出，不要额外解释：
+
+${DEFAULT_TEMPLATE}`;
+      const kw = keywords.length ? `关键词：${keywords.join(", ")}` : "";
+      const user = mode === "random"
+        ? `随机生成一个完整且自洽的人设。${kw}`
+        : `基于以下模板/草稿补全并优化人设，不改结构：\n${templateText}\n${kw}`;
+
+      return [
+        { role:"system", content:"你是严谨的人设生成器，只输出YAML文本。" },
+        { role:"system", content:schema },
+        { role:"user", content:user }
+      ];
+    }
+
+    async function pullModels(base, key){
+      const urls = modelUrls(base);
+      let lastErr = "";
+      for (const url of urls){
+        try{
+          const res = await fetch(url, { method:"GET", headers: headersWithKey(key) });
+          if (!res.ok){
+            lastErr = `${url} -> ${res.status}`;
+            continue;
+          }
+          const data = await res.json();
+          let models = [];
+
+          if (Array.isArray(data?.data)) {
+            models = data.data.map(m => m?.id).filter(Boolean);
+          }
+          if (!models.length && Array.isArray(data?.models)) {
+            models = data.models.map(m => (typeof m === "string" ? m : m?.id)).filter(Boolean);
+          }
+          if (!models.length && Array.isArray(data)) {
+            models = data.map(m => (typeof m === "string" ? m : m?.id)).filter(Boolean);
+          }
+          return models;
+        }catch(e){
+          lastErr = e.message || String(e);
+        }
+      }
+      throw new Error("拉取模型失败：" + lastErr);
+    }
+
+    async function generate(mode){
+      const cfg = getCfg();
+      const base = cfg.base_url || "";
+      const key = cfg.api_key || "";
+      const model = (cfg.model || "").trim();
+      const temperature = Number(cfg.temperature ?? 0.75);
+
+      if (!base || !key || !model){
+        setTip("请先在API设置里填 地址/密钥/模型");
+        return;
+      }
+
+      const payload = {
+        model,
+        temperature,
+        messages: buildMessages(mode, templateInput.value || "", parseKeywords())
+      };
+
+      const urls = chatUrls(base);
+      let lastErr = "";
+
+      setTip("生成中...");
+      for (const url of urls){
+        try{
+          const res = await fetch(url, {
+            method:"POST",
+            headers: headersWithKey(key),
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok){
+            const t = await res.text();
+            lastErr = `${url} -> ${res.status} ${t?.slice(0,120) || ""}`;
+            continue;
+          }
+          const data = await res.json();
+          const text = data?.choices?.[0]?.message?.content || data?.text || "";
+          if (!text) {
+            lastErr = `${url} -> 返回无文本`;
+            continue;
+          }
+
+          currentText = text.trim();
+          resultEl.textContent = currentText;
+          pushHistory(mode === "random" ? "随机" : "按模板", currentText);
+          setTip("完成");
+          return;
+        }catch(e){
+          lastErr = `${url} -> ${e.message || e}`;
+        }
+      }
+
+      resultEl.textContent = "生成失败：\n" + lastErr;
+      setTip("失败");
+    }
+
+    function pushHistory(mode, text){
+      const list = JSON.parse(localStorage.getItem(LS_HISTORY) || "[]");
+      list.unshift({
+        time: new Date().toLocaleString(),
+        mode,
+        text,
+        template: templateInput.value || "",
+        keywords: keywordsInput.value || ""
+      });
+      if (list.length > 50) list.length = 50;
+      localStorage.setItem(LS_HISTORY, JSON.stringify(list));
+      renderHistory();
+    }
+
+    function renderHistory(){
+      const list = JSON.parse(localStorage.getItem(LS_HISTORY) || "[]");
+      if (!list.length){
+        historyList.innerHTML = `<div class="history-item">（暂无历史记录）</div>`;
+        return;
+      }
+      historyList.innerHTML = list.map((it, idx)=>`
+        <div class="history-item" data-idx="${idx}">
+          <div class="small">${it.time} · ${it.mode}</div>
+          <div class="small">${(it.text || "").slice(0,100).replace(/\n/g, " ")}</div>
+        </div>
+      `).join("");
+
+      [...historyList.querySelectorAll(".history-item")].forEach(el=>{
+        el.onclick = ()=>{
+          const i = Number(el.dataset.idx);
+          const item = (JSON.parse(localStorage.getItem(LS_HISTORY)||"[]"))[i];
+          if (!item) return;
+          currentText = item.text || "";
+          resultEl.textContent = currentText;
+          templateInput.value = item.template || templateInput.value;
+          keywordsInput.value = item.keywords || "";
+          saveDraft();
+        };
+      });
+    }
+
+    function saveDraft(){ localStorage.setItem(LS_DRAFT, templateInput.value || ""); }
+    function loadDraft(){
+      const d = localStorage.getItem(LS_DRAFT);
+      templateInput.value = d && d.trim() ? d : DEFAULT_TEMPLATE;
+    }
+
+    // UI events
+    btnOpenSettings.onclick = ()=>{
+      const cfg = getCfg();
+      apiBaseUrl.value = cfg.base_url || "";
+      apiKey.value = cfg.api_key || "";
+      modelManual.value = cfg.model || "";
+      tempRange.value = cfg.temperature ?? 0.75;
+      tempVal.textContent = Number(tempRange.value).toFixed(2);
+      modelSelect.innerHTML = `<option value="${cfg.model||""}">${cfg.model||"请拉取模型或手填"}</option>`;
+      modal.classList.add("show");
+    };
+    btnCloseSettings.onclick = ()=> modal.classList.remove("show");
+
+    tempRange.oninput = ()=> tempVal.textContent = Number(tempRange.value).toFixed(2);
+
+    btnPullModels.onclick = async ()=>{
+      try{
+        setSettingsTip("拉取中...");
+        const models = await pullModels(apiBaseUrl.value, apiKey.value);
+        modelSelect.innerHTML = "";
+        if (!models.length){
+          modelSelect.innerHTML = `<option value="">未拉到模型，可手填</option>`;
+        }else{
+          models.forEach(m=>{
+            const op = document.createElement("option");
+            op.value = m;
+            op.textContent = m;
+            modelSelect.appendChild(op);
+          });
+          modelManual.value = models[0];
+        }
+        setSettingsTip("完成");
+      }catch(e){
+        setSettingsTip("失败，可手填模型");
+      }
+    };
+
+    modelSelect.onchange = ()=> modelManual.value = modelSelect.value || "";
+
+    btnSaveSettings.onclick = ()=>{
+      const cfg = {
+        base_url: normalizeBase(apiBaseUrl.value),
+        api_key: (apiKey.value || "").trim(),
+        model: (modelManual.value || modelSelect.value || "").trim(),
+        temperature: Number(tempRange.value || 0.75)
+      };
+      saveCfg(cfg);
+      setSettingsTip("已保存");
+    };
+
+    btnRandom.onclick = ()=> generate("random");
+    btnGenerate.onclick = ()=> generate("custom");
+
+    btnCopy.onclick = async ()=>{
+      if (!currentText) return setTip("没有可复制内容");
+      try{
+        await navigator.clipboard.writeText(currentText);
+        setTip("已复制");
+      }catch{
+        setTip("复制失败");
+      }
+    };
+
+    // chips
+    const chipsBox = document.getElementById("chips");
+    chipsBox.innerHTML = KEYWORDS.map(k=>`<span class="chip">${k}</span>`).join("");
+    [...chipsBox.querySelectorAll(".chip")].forEach(el=>{
+      el.onclick = ()=>{
+        const v = el.textContent;
+        const arr = parseKeywords();
+        if (!arr.includes(v)) arr.push(v);
+        keywordsInput.value = arr.join(", ");
+      };
+    });
+
+    // init
+    loadDraft();
+    renderHistory();
+    templateInput.addEventListener("input", saveDraft);
+    window.addEventListener("beforeunload", saveDraft);
+  </script>
+</body>
+</html>
